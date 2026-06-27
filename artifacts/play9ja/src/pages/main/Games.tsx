@@ -25,7 +25,7 @@ export default function Games() {
   const executePlay = () => {
     if (!selectedGame) return;
     
-    playMutation.mutate({ gameId: selectedGame.id, data: {} }, {
+    playMutation.mutate({ id: selectedGame.id!, data: {} }, {
       onSuccess: (result) => {
         if (result.won) {
           toast({

@@ -2,7 +2,7 @@ import { Router } from "express";
 import {
   db, usersTable, membershipPurchasesTable, depositsTable,
   withdrawalsTable, gamesTable, notificationsTable, activityMessagesTable,
-  transactionsTable, gamePlaysTable
+  transactionsTable, gamePlaysTable, membershipPlansTable
 } from "@workspace/db";
 import { eq, desc, ilike, sql, and } from "drizzle-orm";
 import { requireAdmin } from "../lib/auth";
@@ -410,6 +410,42 @@ router.post("/broadcast", async (req, res) => {
   } catch (err) {
     req.log.error(err);
     res.status(500).json({ error: "Failed to send broadcast" });
+  }
+});
+
+// Membership Plans CRUD
+router.get("/membership-plans", async (req, res) => {
+  try {
+    const plans = await db.select().from(membershipPlansTable).orderBy(membershipPlansTable.id);
+    res.json(plans.map(p => ({
+      ...p,
+      price: parseFloat(p.price),
+      benefits: typeof p.benefits === "string" ? JSON.parse(p.benefits) : p.benefits,
+      createdAt: p.createdAt.toISOString(),
+    })));
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Failed to get membership plans" });
+  }
+});
+
+router.patch("/membership-plans/:id", async (req, res) => {
+  try {
+    const { name, price, durationDays, isPopular, isActive, benefits } = req.body;
+    const updates: Record<string, any> = {};
+    if (name !== undefined) updates.name = name;
+    if (price !== undefined) updates.price = price.toString();
+    if (durationDays !== undefined) updates.durationDays = Number(durationDays);
+    if (isPopular !== undefined) updates.isPopular = isPopular;
+    if (isActive !== undefined) updates.isActive = isActive;
+    if (benefits !== undefined) updates.benefits = benefits;
+
+    const [updated] = await db.update(membershipPlansTable).set(updates)
+      .where(eq(membershipPlansTable.id, Number(req.params.id))).returning();
+    res.json({ ...updated, price: parseFloat(updated.price), createdAt: updated.createdAt.toISOString() });
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Failed to update plan" });
   }
 });
 
