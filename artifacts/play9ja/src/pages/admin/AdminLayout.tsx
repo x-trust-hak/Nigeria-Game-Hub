@@ -2,7 +2,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Link, useLocation } from "wouter";
 import {
   LayoutDashboard, Users, CreditCard, ArrowDownCircle, ArrowUpCircle,
-  Gamepad2, Bell, Settings, MessageSquare, LogOut, Shield, Menu, X, PackageOpen
+  Gamepad2, Bell, Settings, MessageSquare, LogOut, Shield, Menu, X, PackageOpen, Receipt
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
@@ -81,6 +81,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { path: "/admin/deposits", label: "Deposits", icon: ArrowDownCircle, badge: counts.pendingDeposits },
     { path: "/admin/withdrawals", label: "Withdrawals", icon: ArrowUpCircle, badge: counts.pendingWithdrawals },
     { path: "/admin/games", label: "Games", icon: Gamepad2, badge: 0 },
+    { path: "/admin/transactions", label: "Transactions", icon: Receipt, badge: 0 },
     { path: "/admin/notifications", label: "Broadcast", icon: Bell, badge: 0 },
     { path: "/admin/activity", label: "Activity Feed", icon: MessageSquare, badge: 0 },
     { path: "/admin/settings", label: "Settings", icon: Settings, badge: 0 },

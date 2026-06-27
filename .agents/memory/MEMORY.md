@@ -1,3 +1,6 @@
 - [Play9ja package exports](play9ja-package-exports.md) — api-client-react must export sub-paths explicitly in package.json for Vite to resolve them.
 - [Play9ja CSS import order](play9ja-css-import.md) — Google Fonts @import url() must be first line in index.css before Tailwind @import directives.
 - [Play9ja admin hook names](play9ja-admin-hooks.md) — Generated admin hooks use non-obvious names; always grep api.ts before writing admin pages.
+- [Payment proof upload](payment-proof-upload.md) — file→base64 via FileReader; Express json limit raised to 20mb for base64 proof images; stored in proofUrl text field.
+- [Public settings endpoint](public-settings.md) — `/api/support/public-settings` (no auth) returns deposit account details; used by Membership & Wallet pages.
+- [Render deployment](render-deployment.md) — render.yaml at repo root; Express serves Vite dist in production; withdrawal hook is `useCreateWithdrawal` not `useRequestWithdrawal`.

@@ -15,4 +15,18 @@ router.get("/links", async (req, res) => {
   }
 });
 
+router.get("/public-settings", async (req, res) => {
+  try {
+    const depositAccountName = await getSetting("depositAccountName");
+    const depositAccountNumber = await getSetting("depositAccountNumber");
+    const depositBankName = await getSetting("depositBankName");
+    const welcomeBonus = await getSetting("welcomeBonus");
+    const referralReward = await getSetting("referralReward");
+    res.json({ depositAccountName, depositAccountNumber, depositBankName, welcomeBonus: parseFloat(welcomeBonus), referralReward: parseFloat(referralReward) });
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Failed to get settings" });
+  }
+});
+
 export default router;

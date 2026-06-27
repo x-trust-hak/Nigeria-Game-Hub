@@ -28,8 +28,8 @@ router.post("/", requireAuth, async (req, res) => {
   try {
     const user = (req as any).user;
     const { amount, proofUrl, notes } = req.body;
-    if (!amount || amount < 100) {
-      res.status(400).json({ error: "Minimum deposit is ₦100" });
+    if (!amount || amount < 1000) {
+      res.status(400).json({ error: "Minimum deposit is ₦1,000" });
       return;
     }
 

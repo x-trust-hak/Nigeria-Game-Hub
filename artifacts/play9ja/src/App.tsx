@@ -33,6 +33,7 @@ import AdminGames from "@/pages/admin/AdminGames";
 import AdminNotifications from "@/pages/admin/AdminNotifications";
 import AdminSettings from "@/pages/admin/AdminSettings";
 import AdminPlans from "@/pages/admin/AdminPlans";
+import AdminTransactions from "@/pages/admin/AdminTransactions";
 
 // Layouts
 import MainLayout from "@/components/layout/MainLayout";
@@ -126,6 +127,7 @@ function Router() {
       <Route path="/admin/activity" component={() => <AdminRoute component={AdminNotifications} />} />
       <Route path="/admin/settings" component={() => <AdminRoute component={AdminSettings} />} />
       <Route path="/admin/plans" component={() => <AdminRoute component={AdminPlans} />} />
+      <Route path="/admin/transactions" component={() => <AdminRoute component={AdminTransactions} />} />
 
       {/* 404 */}
       <Route component={NotFound} />

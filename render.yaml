@@ -1,0 +1,39 @@
+services:
+  - type: web
+    name: play9ja-api
+    runtime: node
+    region: oregon
+    plan: free
+    buildCommand: |
+      npm install -g pnpm@9 &&
+      pnpm install --frozen-lockfile &&
+      pnpm --filter @workspace/play9ja run build &&
+      pnpm --filter @workspace/api-server run build
+    startCommand: pnpm --filter @workspace/api-server run start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: DATABASE_URL
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true
+
+  - type: web
+    name: play9ja-frontend
+    runtime: static
+    region: oregon
+    plan: free
+    buildCommand: |
+      npm install -g pnpm@9 &&
+      pnpm install --frozen-lockfile &&
+      pnpm --filter @workspace/play9ja run build
+    staticPublishPath: artifacts/play9ja/dist
+    envVars:
+      - key: VITE_API_BASE_URL
+        value: https://play9ja-api.onrender.com
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html

@@ -492,4 +492,56 @@ router.patch("/games/:id", async (req, res) => {
   }
 });
 
+// All transactions log
+router.get("/transactions", async (req, res) => {
+  try {
+    const { page = 1, limit = 50, type, status, search } = req.query;
+    const offset = (Number(page) - 1) * Number(limit);
+
+    const all = await db
+      .select({
+        id: transactionsTable.id,
+        userId: transactionsTable.userId,
+        username: usersTable.username,
+        email: usersTable.email,
+        type: transactionsTable.type,
+        amount: transactionsTable.amount,
+        status: transactionsTable.status,
+        description: transactionsTable.description,
+        createdAt: transactionsTable.createdAt,
+      })
+      .from(transactionsTable)
+      .leftJoin(usersTable, eq(usersTable.id, transactionsTable.userId))
+      .orderBy(desc(transactionsTable.createdAt));
+
+    let filtered = all as any[];
+    if (type && type !== "all") filtered = filtered.filter((t: any) => t.type === type);
+    if (status && status !== "all") filtered = filtered.filter((t: any) => t.status === status);
+    if (search) {
+      const q = (search as string).toLowerCase();
+      filtered = filtered.filter((t: any) =>
+        t.username?.toLowerCase().includes(q) ||
+        t.email?.toLowerCase().includes(q) ||
+        t.description?.toLowerCase().includes(q)
+      );
+    }
+
+    const total = filtered.length;
+    const paginated = filtered.slice(offset, offset + Number(limit));
+    const totalCredit = filtered.filter((t: any) => parseFloat(t.amount) > 0).reduce((s: number, t: any) => s + parseFloat(t.amount), 0);
+    const totalDebit = filtered.filter((t: any) => parseFloat(t.amount) < 0).reduce((s: number, t: any) => s + parseFloat(t.amount), 0);
+
+    res.json({
+      transactions: paginated.map((t: any) => ({ ...t, amount: parseFloat(t.amount), createdAt: t.createdAt.toISOString() })),
+      total,
+      page: Number(page),
+      limit: Number(limit),
+      summary: { totalCredit, totalDebit: Math.abs(totalDebit) },
+    });
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Failed to get transactions" });
+  }
+});
+
 export default router;
