@@ -1,367 +1,190 @@
-import { useListGames, usePlayGame } from "@workspace/api-client-react";
-import { useGetWalletBalance } from "@workspace/api-client-react";
-import { useState, useEffect, useRef } from "react";
+import { useListGames, useGetWalletBalance } from "@workspace/api-client-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { useToast } from "@/hooks/use-toast";
-import { Loader2, Lock, Flame, Star, Trophy, X, Zap, RefreshCw } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
-import type { Game } from "@workspace/api-client-react/src/generated/api.schemas";
+import { Lock, Flame, Star, Trophy, Wallet, ArrowRight, Zap } from "lucide-react";
 
-type PlayState = "idle" | "playing" | "won" | "lost";
-
-const CATEGORY_ANIM: Record<string, { emoji: string; label: string }> = {
-  wheel: { emoji: "🎡", label: "Spinning..." },
-  slots: { emoji: "🎰", label: "Rolling reels..." },
-  card: { emoji: "🃏", label: "Flipping card..." },
-  dice: { emoji: "🎲", label: "Rolling dice..." },
-  sport: { emoji: "⚡", label: "Taking shot..." },
-  puzzle: { emoji: "🧩", label: "Solving..." },
-  quiz: { emoji: "🧠", label: "Thinking..." },
-  memory: { emoji: "🟩", label: "Matching..." },
-  prediction: { emoji: "🎯", label: "Predicting..." },
-  luck: { emoji: "🍀", label: "Opening..." },
-  jackpot: { emoji: "🎊", label: "Drawing..." },
-  crash: { emoji: "🚀", label: "Flying..." },
-  action: { emoji: "🔥", label: "Going..." },
-  classic: { emoji: "🐍", label: "Playing..." },
-  default: { emoji: "⭐", label: "Playing..." },
+const CATEGORY_BADGE: Record<string, { label: string; color: string }> = {
+  wheel:  { label: "WHEEL",  color: "bg-purple-500/10 text-purple-400 border-purple-500/20" },
+  slots:  { label: "SLOTS",  color: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20" },
+  card:   { label: "CARDS",  color: "bg-blue-500/10  text-blue-400  border-blue-500/20"  },
+  dice:   { label: "DICE",   color: "bg-green-500/10 text-green-400 border-green-500/20" },
+  sport:  { label: "SPORT",  color: "bg-red-500/10   text-red-400   border-red-500/20"   },
+  crash:  { label: "CRASH",  color: "bg-orange-500/10 text-orange-400 border-orange-500/20" },
+  quiz:   { label: "QUIZ",   color: "bg-cyan-500/10  text-cyan-400  border-cyan-500/20"  },
+  luck:   { label: "LUCKY",  color: "bg-pink-500/10  text-pink-400  border-pink-500/20"  },
 };
 
-function GameAnimation({ category }: { category: string }) {
-  const anim = CATEGORY_ANIM[category] ?? CATEGORY_ANIM.default;
-  return (
-    <div className="flex flex-col items-center justify-center py-10 gap-4">
-      <div className="text-7xl animate-bounce">{anim.emoji}</div>
-      <div className="flex gap-1.5">
-        {[0, 1, 2].map(i => (
-          <div key={i} className="w-2.5 h-2.5 rounded-full bg-primary animate-pulse" style={{ animationDelay: `${i * 0.2}s` }} />
-        ))}
-      </div>
-      <p className="text-muted-foreground font-medium text-sm">{anim.label}</p>
-    </div>
-  );
-}
-
-function WinResult({ reward, game }: { reward: number; game: Game }) {
-  const particles = Array.from({ length: 12 });
-  return (
-    <div className="relative flex flex-col items-center justify-center py-8 gap-4 overflow-hidden">
-      {particles.map((_, i) => (
-        <div
-          key={i}
-          className="absolute w-3 h-3 rounded-full opacity-0"
-          style={{
-            backgroundColor: ["#FFD700", "#FFA500", "#FF6B35", "#7CFC00", "#00CED1", "#FF69B4"][i % 6],
-            left: `${8 + i * 7}%`,
-            top: `${Math.random() * 60}%`,
-            animation: `confettiFall 1.2s ease-out ${i * 0.08}s forwards`,
-          }}
-        />
-      ))}
-      <div className="text-6xl animate-bounce">🏆</div>
-      <div className="text-center">
-        <p className="text-primary font-bold text-2xl font-display">You Won!</p>
-        <p className="text-4xl font-bold text-green-500 font-display mt-1">+₦{reward.toLocaleString()}</p>
-        <p className="text-sm text-muted-foreground mt-2">Added to your game balance</p>
-      </div>
-      <div className="flex gap-2 mt-2">
-        <Trophy className="w-5 h-5 text-amber-500" />
-        <Star className="w-5 h-5 text-amber-400" />
-        <Trophy className="w-5 h-5 text-amber-500" />
-      </div>
-    </div>
-  );
-}
-
-function LoseResult({ game }: { game: Game }) {
-  return (
-    <div className="flex flex-col items-center justify-center py-10 gap-4">
-      <div className="text-6xl" style={{ animation: "shake 0.5s ease-in-out" }}>😔</div>
-      <div className="text-center">
-        <p className="font-bold text-xl">Better luck next time!</p>
-        <p className="text-sm text-muted-foreground mt-1">Win up to ₦{game.maxReward?.toLocaleString()}</p>
-      </div>
-    </div>
-  );
-}
-
-function LowBalanceAlert({ totalBalance, hasMembership }: { totalBalance: number; hasMembership: boolean }) {
-  return (
-    <div className="fixed inset-0 bg-black/60 z-50 flex items-end justify-center p-4" style={{ backdropFilter: "blur(4px)" }}>
-      <div className="w-full max-w-sm bg-card rounded-3xl p-6 shadow-2xl border border-border animate-in slide-in-from-bottom duration-300">
-        <div className="text-center mb-6">
-          <div className="text-5xl mb-3">💸</div>
-          <h3 className="text-xl font-bold font-display">Top Up Required</h3>
-          <p className="text-muted-foreground text-sm mt-2">
-            {totalBalance === 0
-              ? "Your balance is empty. Deposit or upgrade your membership to play games and start earning!"
-              : "You need an active membership or wallet balance to play."}
-          </p>
-        </div>
-        <div className="space-y-3">
-          <Link href="/wallet">
-            <Button className="w-full h-12 rounded-xl gold-gradient text-black font-bold text-base">
-              💰 Deposit Now
-            </Button>
-          </Link>
-          <Link href="/membership">
-            <Button variant="outline" className="w-full h-12 rounded-xl font-bold text-base border-primary text-primary">
-              ⭐ Get Membership
-            </Button>
-          </Link>
-        </div>
-      </div>
-    </div>
-  );
-}
+const FEATURED_GAME_TYPES = ["wheel", "slots", "dice", "card"];
 
 export default function Games() {
   const { data: games, isLoading } = useListGames();
   const { data: balance } = useGetWalletBalance();
-  const [selectedGame, setSelectedGame] = useState<Game | null>(null);
-  const [playState, setPlayState] = useState<PlayState>("idle");
-  const [result, setResult] = useState<{ won: boolean; reward: number; message: string } | null>(null);
-  const [showLowBalance, setShowLowBalance] = useState(false);
-  const [dailyLimitGames, setDailyLimitGames] = useState<Set<number>>(new Set());
+  const walletBalance = balance?.withdrawable ?? 0;
 
-  const playMutation = usePlayGame();
-  const { toast } = useToast();
-
-  const totalBalance = (balance?.total ?? 0);
-
-  const handlePlayClick = (game: Game) => {
-    if (game.isPremium && totalBalance === 0) {
-      setShowLowBalance(true);
-      return;
-    }
-    setSelectedGame(game);
-    setPlayState("idle");
-    setResult(null);
-  };
-
-  const executePlay = () => {
-    if (!selectedGame) return;
-
-    setPlayState("playing");
-
-    playMutation.mutate({ id: selectedGame.id!, data: {} }, {
-      onSuccess: (res) => {
-        setTimeout(() => {
-          setResult({ won: res.won, reward: res.reward, message: res.message });
-          setPlayState(res.won ? "won" : "lost");
-          if (res.won) {
-            toast({
-              title: `🎉 You won ₦${res.reward.toLocaleString()}!`,
-              description: `Added to your game balance.`,
-              className: "bg-green-500 text-white border-none",
-            });
-          }
-        }, 2200);
-      },
-      onError: (err: any) => {
-        setPlayState("idle");
-        const msg = err?.message ?? "Failed to play";
-        if (msg.includes("Daily limit")) {
-          setDailyLimitGames(prev => new Set([...prev, selectedGame.id!]));
-          toast({ title: "Daily limit reached", description: msg, variant: "destructive" });
-          setSelectedGame(null);
-        } else if (msg.includes("membership")) {
-          setSelectedGame(null);
-          setShowLowBalance(true);
-        } else {
-          toast({ title: "Error", description: msg, variant: "destructive" });
-        }
-      },
-    });
-  };
-
-  const closeModal = () => {
-    if (playState === "playing") return;
-    setSelectedGame(null);
-    setPlayState("idle");
-    setResult(null);
-  };
-
-  const playAgain = () => {
-    setPlayState("idle");
-    setResult(null);
-  };
-
-  const diffColor: Record<string, string> = {
-    easy: "bg-green-500/10 text-green-600",
-    medium: "bg-amber-500/10 text-amber-600",
-    hard: "bg-red-500/10 text-red-600",
-  };
+  // Split featured vs regular
+  const featured = games?.filter(g => {
+    const n = (g.name ?? "").toLowerCase();
+    return n.includes("spin") || n.includes("slot") || n.includes("wheel") || n.includes("dice");
+  }).slice(0, 3) ?? [];
 
   return (
-    <>
-      <style>{`
-        @keyframes confettiFall {
-          0% { transform: translateY(-20px) rotate(0deg); opacity: 1; }
-          100% { transform: translateY(80px) rotate(360deg); opacity: 0; }
-        }
-        @keyframes shake {
-          0%, 100% { transform: translateX(0); }
-          20% { transform: translateX(-8px); }
-          40% { transform: translateX(8px); }
-          60% { transform: translateX(-8px); }
-          80% { transform: translateX(8px); }
-        }
-      `}</style>
-
-      <div className="p-4 md:p-8 space-y-6 pb-24">
-        <div className="flex items-end justify-between">
-          <div>
-            <h1 className="text-3xl md:text-4xl font-display font-bold tracking-tight mb-1">Game Lobby</h1>
-            <p className="text-muted-foreground text-sm">Play games, win real Naira 💰</p>
-          </div>
-          {balance && (
+    <div className="pb-28">
+      {/* Hero Header */}
+      <div className="bg-gradient-to-b from-primary/20 to-transparent px-4 pt-6 pb-4">
+        <div className="max-w-xl mx-auto">
+          <div className="flex items-end justify-between mb-2">
+            <div>
+              <h1 className="text-3xl font-display font-black tracking-tight">Game Lobby</h1>
+              <p className="text-muted-foreground text-sm mt-0.5">Bet real money · Win real Naira 💰</p>
+            </div>
             <div className="text-right">
-              <p className="text-xs text-muted-foreground">Game Balance</p>
-              <p className="font-bold text-primary">₦{(balance.game ?? 0).toLocaleString()}</p>
+              <p className="text-xs text-muted-foreground flex items-center gap-1 justify-end">
+                <Wallet className="w-3 h-3" /> Balance
+              </p>
+              <p className={`font-bold text-lg ${walletBalance === 0 ? "text-red-400" : "text-primary"}`}>
+                ₦{walletBalance.toLocaleString()}
+              </p>
+            </div>
+          </div>
+
+          {walletBalance === 0 && (
+            <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-3 flex items-center gap-3 mt-3">
+              <span className="text-2xl">⚠️</span>
+              <div className="flex-1 min-w-0">
+                <p className="font-bold text-red-400 text-sm">No balance to play!</p>
+                <p className="text-xs text-red-400/70">Deposit or subscribe to start winning.</p>
+              </div>
+              <Link href="/wallet">
+                <Button size="sm" className="h-8 text-xs gold-gradient text-black border-none rounded-lg font-bold shrink-0">
+                  Top Up
+                </Button>
+              </Link>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="px-4 max-w-xl mx-auto space-y-6">
+        {/* Featured games (big cards) */}
+        {!isLoading && featured.length > 0 && (
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <Zap className="w-4 h-4 text-amber-500" />
+              <h2 className="font-bold text-base">Featured Games</h2>
+            </div>
+            <div className="space-y-3">
+              {featured.map(game => (
+                <Link key={game.id} href={`/games/${game.id}`}>
+                  <div className="bg-gradient-to-r from-gray-900 to-black border border-amber-500/20 rounded-3xl p-4 flex items-center gap-4 hover:border-amber-500/50 hover:shadow-lg hover:shadow-amber-500/10 transition-all cursor-pointer group">
+                    <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center text-4xl shrink-0 group-hover:scale-110 transition-transform">
+                      {game.emoji}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="font-bold text-base text-white">{game.name}</h3>
+                        {game.isPremium && <Lock className="w-3.5 h-3.5 text-amber-400" />}
+                      </div>
+                      <p className="text-xs text-gray-400 truncate mb-2">{game.description}</p>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-green-400">Min ₦100</span>
+                        <span className="text-gray-600">·</span>
+                        <span className="text-xs font-bold text-amber-400">Up to 10× win</span>
+                      </div>
+                    </div>
+                    <div className="shrink-0">
+                      <Button size="sm" className="h-9 px-4 rounded-xl gold-gradient text-black font-bold text-xs border-none">
+                        PLAY <ArrowRight className="w-3 h-3 ml-1" />
+                      </Button>
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* All games grid */}
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <Trophy className="w-4 h-4 text-amber-500" />
+            <h2 className="font-bold text-base">All Games</h2>
+            <Badge variant="secondary" className="text-xs ml-auto">{games?.length ?? 0} games</Badge>
+          </div>
+
+          {isLoading ? (
+            <div className="grid grid-cols-2 gap-3">
+              {[1,2,3,4,5,6,7,8].map(i => <Skeleton key={i} className="h-44 rounded-2xl" />)}
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              {games?.map(game => {
+                const catBadge = CATEGORY_BADGE[game.category ?? ""] ?? { label: game.category?.toUpperCase() ?? "GAME", color: "bg-muted text-muted-foreground border-border" };
+                const today = (game as any).playsToday ?? 0;
+                const limit = game.dailyLimit ?? 5;
+                const playsLeft = Math.max(0, limit - today);
+                const atLimit = playsLeft === 0;
+
+                return (
+                  <Link key={game.id} href={atLimit ? "#" : `/games/${game.id}`}>
+                    <div className={`bg-card border rounded-2xl overflow-hidden transition-all group ${
+                      atLimit
+                        ? "opacity-50 cursor-not-allowed border-border"
+                        : "border-border hover:border-primary/40 hover:shadow-lg hover:shadow-primary/10 cursor-pointer"
+                    }`}>
+                      {/* Game image area */}
+                      <div className="bg-gradient-to-br from-gray-900 to-black h-28 flex items-center justify-center relative overflow-hidden">
+                        <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-transparent" />
+                        {game.isPremium && (
+                          <div className="absolute top-2 right-2 bg-amber-500/90 text-black text-xs px-1.5 py-0.5 rounded-lg flex items-center gap-0.5 font-bold">
+                            <Lock className="w-2.5 h-2.5" /> VIP
+                          </div>
+                        )}
+                        {game.difficulty === "hard" && (
+                          <div className="absolute top-2 left-2 bg-red-500/90 text-white text-xs px-1.5 py-0.5 rounded-lg flex items-center gap-0.5 font-bold">
+                            <Flame className="w-2.5 h-2.5" /> Hot
+                          </div>
+                        )}
+                        <span className="text-5xl z-10 group-hover:scale-110 transition-transform">{game.emoji}</span>
+                      </div>
+
+                      {/* Game info */}
+                      <div className="p-3">
+                        <h3 className="font-bold text-sm truncate mb-1">{game.name}</h3>
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <Badge variant="outline" className={`text-xs py-0 px-1.5 ${catBadge.color}`}>
+                            {catBadge.label}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-green-500 font-bold">Win up to 10×</span>
+                          {atLimit ? (
+                            <span className="text-xs text-red-400">Limit ✓</span>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">{playsLeft} left</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </Link>
+                );
+              })}
             </div>
           )}
         </div>
 
-        {isLoading ? (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {[1, 2, 3, 4, 5, 6, 7, 8].map(i => <Skeleton key={i} className="h-44 rounded-2xl" />)}
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {games?.map((game) => {
-              const atLimit = dailyLimitGames.has(game.id!);
-              const today = (game as any).playsToday ?? 0;
-              const limit = game.dailyLimit ?? 5;
-              const playsLeft = Math.max(0, limit - today);
-
-              return (
-                <Card
-                  key={game.id}
-                  onClick={() => !atLimit && handlePlayClick(game)}
-                  className={`rounded-2xl border transition-all duration-200 overflow-hidden relative group ${
-                    atLimit
-                      ? "opacity-50 cursor-not-allowed border-border"
-                      : "cursor-pointer hover:shadow-xl hover:scale-[1.02] hover:border-primary/50 border-border"
-                  }`}
-                >
-                  {game.isPremium && (
-                    <div className="absolute top-0 right-0 bg-primary/90 text-primary-foreground text-xs px-2 py-0.5 rounded-bl-xl flex items-center gap-1">
-                      <Lock className="w-3 h-3" /> VIP
-                    </div>
-                  )}
-                  {game.difficulty === "hard" && (
-                    <div className="absolute top-0 left-0 bg-red-500/90 text-white text-xs px-2 py-0.5 rounded-br-xl flex items-center gap-1">
-                      <Flame className="w-3 h-3" /> Hot
-                    </div>
-                  )}
-                  <CardContent className="p-4 flex flex-col items-center text-center gap-2">
-                    <div className="text-5xl mt-2 group-hover:scale-110 transition-transform duration-200">{game.emoji}</div>
-                    <h3 className="font-bold text-sm leading-tight">{game.name}</h3>
-                    <Badge variant="secondary" className={`text-xs ${diffColor[game.difficulty ?? "medium"]}`}>
-                      {game.difficulty}
-                    </Badge>
-                    <div className="text-xs text-muted-foreground">Up to ₦{(game.maxReward ?? 0).toLocaleString()}</div>
-                    {atLimit ? (
-                      <Badge variant="outline" className="text-xs text-red-500 border-red-200">Limit reached</Badge>
-                    ) : (
-                      <div className="text-xs text-muted-foreground/60">{playsLeft} plays left</div>
-                    )}
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* Game Play Modal */}
-      <Dialog open={!!selectedGame} onOpenChange={closeModal}>
-        <DialogContent className="sm:max-w-sm rounded-3xl p-0 overflow-hidden border-none shadow-2xl">
-          {selectedGame && (
-            <>
-              {/* Header */}
-              <div className="relative bg-gradient-to-br from-primary/20 to-primary/5 p-6 pb-4">
-                {playState !== "playing" && (
-                  <button
-                    onClick={closeModal}
-                    className="absolute top-4 right-4 text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                )}
-                <div className="flex items-center gap-3">
-                  <div className="text-4xl">{selectedGame.emoji}</div>
-                  <div>
-                    <h2 className="font-bold text-xl font-display">{selectedGame.name}</h2>
-                    <p className="text-sm text-muted-foreground">{selectedGame.description}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="p-6 pt-2">
-                {playState === "idle" && (
-                  <>
-                    <div className="bg-muted/50 rounded-2xl p-4 mb-5 text-center">
-                      <p className="text-xs text-muted-foreground mb-1">Potential Reward</p>
-                      <p className="text-3xl font-bold text-primary font-display">
-                        ₦{selectedGame.minReward?.toLocaleString()} – ₦{selectedGame.maxReward?.toLocaleString()}
-                      </p>
-                      {selectedGame.isPremium && (
-                        <p className="text-xs text-amber-600 mt-1">
-                          <Star className="w-3 h-3 inline mr-1" />VIP: up to {selectedGame.premiumMultiplier}× multiplier
-                        </p>
-                      )}
-                    </div>
-                    <Button
-                      className="w-full h-14 rounded-xl text-xl font-bold gold-gradient text-black border-none shadow-lg hover:shadow-xl transition-all hover:scale-[1.02]"
-                      onClick={executePlay}
-                    >
-                      <Zap className="w-5 h-5 mr-2" /> PLAY NOW
-                    </Button>
-                  </>
-                )}
-
-                {playState === "playing" && <GameAnimation category={selectedGame.category ?? "default"} />}
-
-                {playState === "won" && result && (
-                  <>
-                    <WinResult reward={result.reward} game={selectedGame} />
-                    <div className="flex gap-3 mt-4">
-                      <Button variant="outline" className="flex-1 rounded-xl" onClick={closeModal}>Done</Button>
-                      <Button className="flex-1 rounded-xl gold-gradient text-black font-bold" onClick={playAgain}>
-                        <RefreshCw className="w-4 h-4 mr-1" /> Play Again
-                      </Button>
-                    </div>
-                  </>
-                )}
-
-                {playState === "lost" && result && (
-                  <>
-                    <LoseResult game={selectedGame} />
-                    <div className="flex gap-3 mt-4">
-                      <Button variant="outline" className="flex-1 rounded-xl" onClick={closeModal}>Close</Button>
-                      <Button className="flex-1 rounded-xl" onClick={playAgain}>
-                        <RefreshCw className="w-4 h-4 mr-1" /> Try Again
-                      </Button>
-                    </div>
-                  </>
-                )}
-              </div>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {showLowBalance && (
-        <div onClick={() => setShowLowBalance(false)}>
-          <LowBalanceAlert totalBalance={totalBalance} hasMembership={false} />
+        {/* Bottom promo */}
+        <div className="bg-gradient-to-r from-primary/10 to-purple-500/10 border border-primary/20 rounded-2xl p-4 text-center">
+          <p className="font-bold text-sm">🏆 Get membership for up to <span className="text-primary">1.5× more winnings</span> on every game!</p>
+          <Link href="/membership">
+            <Button size="sm" className="mt-2 h-8 text-xs rounded-lg gold-gradient text-black border-none font-bold">
+              Upgrade Now
+            </Button>
+          </Link>
         </div>
-      )}
-    </>
+      </div>
+    </div>
   );
 }

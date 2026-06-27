@@ -14,6 +14,7 @@ import ForgotPassword from "@/pages/auth/ForgotPassword";
 // Main Pages
 import Home from "@/pages/main/Home";
 import Games from "@/pages/main/Games";
+import GamePage from "@/pages/main/GamePage";
 import Wallet from "@/pages/main/Wallet";
 import Profile from "@/pages/main/Profile";
 import Rewards from "@/pages/main/Rewards";
@@ -108,6 +109,13 @@ function Router() {
       {/* Protected Routes */}
       <Route path="/" component={() => <ProtectedRoute component={Home} />} />
       <Route path="/games" component={() => <ProtectedRoute component={Games} />} />
+      <Route path="/games/:id" component={() => {
+        const { isAuthenticated, isLoading } = useAuth();
+        const [, setLocation] = useLocation();
+        if (isLoading) return <div className="flex h-screen items-center justify-center"><div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full"></div></div>;
+        if (!isAuthenticated) { setLocation("/login"); return null; }
+        return <GamePage />;
+      }} />
       <Route path="/wallet" component={() => <ProtectedRoute component={Wallet} />} />
       <Route path="/profile" component={() => <ProtectedRoute component={Profile} />} />
       <Route path="/rewards" component={() => <ProtectedRoute component={Rewards} />} />
