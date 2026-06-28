@@ -19,9 +19,10 @@ interface Props {
   onPlay: (bet: number, choice?: string) => Promise<{ won: boolean; reward: number; message: string }>;
   isPlaying: boolean;
   balance: number;
+  sounds?: any;
 }
 
-export default function CardGame({ betAmount, onPlay, isPlaying, balance }: Props) {
+export default function CardGame({ betAmount, onPlay, isPlaying, balance, sounds }: Props) {
   const [phase, setPhase] = useState<"pick" | "revealing" | "done">("pick");
   const [selectedCard, setSelectedCard] = useState<number | null>(null);
   const [revealed, setRevealed] = useState<Record<number, string>>({});

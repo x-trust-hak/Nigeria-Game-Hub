@@ -2,6 +2,7 @@ import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
+import type { useGameSounds } from "@/hooks/useGameSounds";
 
 const SEGMENTS = [
   { label: "LOSE",  multiplier: 0,   color: "#1a0a2e", textColor: "#ff4466" },
@@ -33,15 +34,18 @@ function labelPos(cx: number, cy: number, r: number, segIdx: number) {
   return polarToCartesian(cx, cy, r * 0.62, mid);
 }
 
+type Sounds = ReturnType<typeof useGameSounds>;
+
 interface Props {
   gameId: number;
   betAmount: number;
   onPlay: (bet: number) => Promise<{ won: boolean; reward: number; multiplier?: number; message: string }>;
   isPlaying: boolean;
   balance: number;
+  sounds?: Sounds;
 }
 
-export default function SpinWheelGame({ gameId, betAmount, onPlay, isPlaying, balance }: Props) {
+export default function SpinWheelGame({ gameId, betAmount, onPlay, isPlaying, balance, sounds }: Props) {
   const [rotation, setRotation] = useState(0);
   const [spinning, setSpinning] = useState(false);
   const [result, setResult] = useState<{ won: boolean; reward: number; message: string } | null>(null);

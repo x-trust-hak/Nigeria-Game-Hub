@@ -12,9 +12,10 @@ interface Props {
   onPlay: (bet: number, choice?: string) => Promise<{ won: boolean; reward: number; message: string }>;
   isPlaying: boolean;
   balance: number;
+  sounds?: any;
 }
 
-export default function DiceGame({ betAmount, onPlay, isPlaying, balance }: Props) {
+export default function DiceGame({ betAmount, onPlay, isPlaying, balance, sounds }: Props) {
   const [rolling, setRolling] = useState(false);
   const [currentFace, setCurrentFace] = useState("⚃");
   const [finalFace, setFinalFace] = useState<string | null>(null);

@@ -8,9 +8,10 @@ interface Props {
   onPlay: (bet: number, choice?: string) => Promise<{ won: boolean; reward: number; message: string }>;
   balance: number;
   maxNumber?: number;
+  sounds?: any;
 }
 
-export default function NumberGame({ betAmount, onPlay, balance, maxNumber = 10 }: Props) {
+export default function NumberGame({ betAmount, onPlay, balance, maxNumber = 10, sounds }: Props) {
   const [picked, setPicked] = useState<number | null>(null);
   const [revealed, setRevealed] = useState<number | null>(null);
   const [playing, setPlaying] = useState(false);

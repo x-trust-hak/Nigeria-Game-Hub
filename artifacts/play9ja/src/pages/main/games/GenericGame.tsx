@@ -22,9 +22,10 @@ interface Props {
   betAmount: number;
   onPlay: (bet: number) => Promise<{ won: boolean; reward: number; message: string }>;
   balance: number;
+  sounds?: any;
 }
 
-export default function GenericGame({ category, gameName, emoji, betAmount, onPlay, balance }: Props) {
+export default function GenericGame({ category, gameName, emoji, betAmount, onPlay, balance, sounds }: Props) {
   const cfg = CATEGORY_CONFIG[category] ?? CATEGORY_CONFIG.default;
   const [phase, setPhase] = useState<"idle" | "playing" | "done">("idle");
   const [result, setResult] = useState<{ won: boolean; reward: number } | null>(null);

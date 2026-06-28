@@ -7,9 +7,10 @@ interface Props {
   betAmount: number;
   onPlay: (bet: number) => Promise<{ won: boolean; reward: number; message: string }>;
   balance: number;
+  sounds?: any;
 }
 
-export default function CrashGame({ betAmount, onPlay, balance }: Props) {
+export default function CrashGame({ betAmount, onPlay, balance, sounds }: Props) {
   const [phase, setPhase] = useState<"idle" | "flying" | "cashed" | "crashed" | "done">("idle");
   const [multiplier, setMultiplier] = useState(1.00);
   const [result, setResult] = useState<{ won: boolean; reward: number } | null>(null);

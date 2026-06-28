@@ -78,9 +78,10 @@ interface Props {
   onPlay: (bet: number) => Promise<{ won: boolean; reward: number; message: string }>;
   isPlaying: boolean;
   balance: number;
+  sounds?: any;
 }
 
-export default function SlotsGame({ betAmount, onPlay, isPlaying, balance }: Props) {
+export default function SlotsGame({ betAmount, onPlay, isPlaying, balance, sounds }: Props) {
   const REEL_COUNT = 3;
   const [reels] = useState(() => Array.from({ length: REEL_COUNT }, () => generateReel()));
   const [spinning, setSpinning] = useState(false);

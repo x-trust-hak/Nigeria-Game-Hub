@@ -1,4 +1,5 @@
-import { useGetWalletBalance, useListWalletTransactions, useCreateDeposit, useCreateWithdrawal } from "@workspace/api-client-react";
+import { useGetWalletBalance, useListWalletTransactions, useCreateDeposit, useCreateWithdrawal, useGetMembershipStatus } from "@workspace/api-client-react";
+import UpgradeModal from "@/components/UpgradeModal";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,11 +36,13 @@ export default function Wallet() {
   const { data: balance, refetch: refetchBalance } = useGetWalletBalance();
   const { data: txList, refetch: refetchTx } = useListWalletTransactions();
   const { data: settings } = useQuery({ queryKey: ["public-settings"], queryFn: fetchPublicSettings });
+  const { data: membership } = useGetMembershipStatus();
   const createDeposit = useCreateDeposit();
   const requestWithdrawal = useCreateWithdrawal();
   const { toast } = useToast();
 
   const [modal, setModal] = useState<Modal>("none");
+  const [showWithdrawGate, setShowWithdrawGate] = useState(false);
   const [amount, setAmount] = useState("");
   const [proofFile, setProofFile] = useState<File | null>(null);
   const [proofPreview, setProofPreview] = useState<string | null>(null);
@@ -74,6 +77,10 @@ export default function Wallet() {
   };
 
   const openWithdraw = () => {
+    if (!membership?.isActive) {
+      setShowWithdrawGate(true);
+      return;
+    }
     setModal("withdraw");
     setAmount("");
     setBankName("");
@@ -144,6 +151,13 @@ export default function Wallet() {
 
   return (
     <div className="p-4 md:p-8 space-y-6 pb-24 max-w-4xl mx-auto">
+      {/* Withdraw gate for free accounts */}
+      <UpgradeModal
+        open={showWithdrawGate}
+        onClose={() => setShowWithdrawGate(false)}
+        reason="withdraw_gate"
+      />
+
       <h1 className="text-3xl md:text-4xl font-display font-bold tracking-tight">My Wallet</h1>
 
       {/* Balance Cards */}

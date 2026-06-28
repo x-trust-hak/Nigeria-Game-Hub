@@ -1,9 +1,8 @@
 import { useParams, useLocation } from "wouter";
 import { useListGames, usePlayGame, useGetWalletBalance } from "@workspace/api-client-react";
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Wallet, History, Lock, Zap } from "lucide-react";
+import { ArrowLeft, History, Zap } from "lucide-react";
 import { Link } from "wouter";
 import SpinWheelGame from "./games/SpinWheelGame";
 import SlotsGame from "./games/SlotsGame";
@@ -12,6 +11,8 @@ import CardGame from "./games/CardGame";
 import NumberGame from "./games/NumberGame";
 import CrashGame from "./games/CrashGame";
 import GenericGame from "./games/GenericGame";
+import UpgradeModal from "@/components/UpgradeModal";
+import { useGameSounds } from "@/hooks/useGameSounds";
 
 const BET_OPTIONS = [100, 200, 500, 1000, 2000, 5000];
 
@@ -26,6 +27,15 @@ function getGameType(name: string, category: string): string {
   return "generic";
 }
 
+type BlockReason = "daily_limit" | "premium_game" | "generic" | null;
+
+function parseBlockReason(errorMsg: string): BlockReason {
+  const m = errorMsg.toLowerCase();
+  if (m.includes("daily limit")) return "daily_limit";
+  if (m.includes("premium") || m.includes("vip") || m.includes("membership required")) return "premium_game";
+  return "generic";
+}
+
 export default function GamePage() {
   const params = useParams<{ id: string }>();
   const [, setLocation] = useLocation();
@@ -34,35 +44,58 @@ export default function GamePage() {
   const { data: games } = useListGames();
   const { data: balance, refetch: refetchBalance } = useGetWalletBalance();
   const playMutation = usePlayGame();
+  const sounds = useGameSounds();
 
   const [betAmount, setBetAmount] = useState(200);
   const [playHistory, setPlayHistory] = useState<Array<{ won: boolean; reward: number; bet: number; time: string }>>([]);
+  const [blockReason, setBlockReason] = useState<BlockReason>(null);
 
   const game = games?.find(g => g.id === gameId);
   const walletBalance = balance?.withdrawable ?? 0;
-  const hasBalance = walletBalance >= betAmount;
-
+  const isLowBalance = walletBalance < betAmount;
   const gameType = game ? getGameType(game.name ?? "", game.category ?? "") : "generic";
 
   const handlePlay = async (bet: number, choice?: string) => {
-    const res = await playMutation.mutateAsync({
-      id: gameId,
-      data: { bet, choice: choice ?? null },
-    });
-    // Add to local history
-    setPlayHistory(prev => [{
-      won: res.won,
-      reward: res.reward,
-      bet,
-      time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-    }, ...prev.slice(0, 9)]);
-    await refetchBalance();
-    return {
-      won: res.won,
-      reward: res.reward,
-      multiplier: res.reward > 0 ? res.reward / bet : 0,
-      message: res.message,
-    };
+    try {
+      sounds.playSpin();
+      const res = await playMutation.mutateAsync({
+        id: gameId,
+        data: { bet, choice: choice ?? null },
+      });
+      setPlayHistory(prev => [{
+        won: res.won,
+        reward: res.reward,
+        bet,
+        time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      }, ...prev.slice(0, 9)]);
+      await refetchBalance();
+
+      if (res.won) {
+        if (res.reward >= bet * 5) sounds.playBigWin();
+        else sounds.playWin();
+      } else {
+        sounds.playLose();
+      }
+
+      return {
+        won: res.won,
+        reward: res.reward,
+        multiplier: res.reward > 0 ? res.reward / bet : 0,
+        message: res.message,
+      };
+    } catch (err: any) {
+      const msg: string = err?.message ?? err?.error ?? "Something went wrong";
+      const reason = parseBlockReason(msg);
+
+      // Show upgrade modal for limit/premium errors
+      if (reason === "daily_limit" || reason === "premium_game") {
+        setBlockReason(reason);
+        throw err; // re-throw so game component knows there was an error
+      }
+
+      // Low balance or other — re-throw for game component to handle
+      throw err;
+    }
   };
 
   if (!game) {
@@ -73,21 +106,30 @@ export default function GamePage() {
     );
   }
 
-  const isLowBalance = walletBalance < betAmount;
-
   return (
     <div className="min-h-screen bg-background pb-6">
+      {/* Upgrade Modal */}
+      <UpgradeModal
+        open={blockReason !== null}
+        onClose={() => setBlockReason(null)}
+        reason={blockReason ?? "generic"}
+        gameName={game.name ?? ""}
+      />
+
       {/* Header */}
       <div className="sticky top-0 z-30 bg-background/90 backdrop-blur-sm border-b border-border">
         <div className="flex items-center gap-3 p-4 max-w-lg mx-auto">
-          <button onClick={() => setLocation("/games")} className="w-9 h-9 rounded-xl bg-muted flex items-center justify-center hover:bg-primary/10 transition-colors">
+          <button
+            onClick={() => setLocation("/games")}
+            className="w-9 h-9 rounded-xl bg-muted flex items-center justify-center hover:bg-primary/10 transition-colors"
+          >
             <ArrowLeft className="w-4 h-4" />
           </button>
           <div className="flex items-center gap-2 flex-1">
             <span className="text-2xl">{game.emoji}</span>
             <div>
               <h1 className="font-bold text-base leading-tight">{game.name}</h1>
-              <p className="text-xs text-muted-foreground">{game.description}</p>
+              <p className="text-xs text-muted-foreground truncate max-w-[160px]">{game.description}</p>
             </div>
           </div>
           <div className="text-right">
@@ -102,11 +144,11 @@ export default function GamePage() {
       <div className="max-w-lg mx-auto px-4 pt-5 space-y-5">
         {/* Low balance alert */}
         {isLowBalance && (
-          <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-4 flex items-center gap-3 animate-in fade-in slide-in-from-top">
+          <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-4 flex items-center gap-3">
             <div className="text-2xl">⚠️</div>
             <div className="flex-1">
-              <p className="font-bold text-red-400 text-sm">Insufficient balance!</p>
-              <p className="text-xs text-red-400/70">You need ₦{betAmount.toLocaleString()} to play. Deposit or lower your bet.</p>
+              <p className="font-bold text-red-400 text-sm">Insufficient balance</p>
+              <p className="text-xs text-red-400/70">Need ₦{betAmount.toLocaleString()} to play. Top up or pick a lower bet.</p>
             </div>
             <div className="flex flex-col gap-1">
               <Link href="/wallet">
@@ -116,7 +158,7 @@ export default function GamePage() {
               </Link>
               <Link href="/membership">
                 <Button size="sm" variant="outline" className="h-8 text-xs rounded-lg">
-                  Membership
+                  Upgrade
                 </Button>
               </Link>
             </div>
@@ -135,8 +177,24 @@ export default function GamePage() {
           </div>
           <div className="bg-card border border-border rounded-xl p-2.5 text-center">
             <p className="text-xs text-muted-foreground">Daily Limit</p>
-            <p className="font-bold text-sm">{game.dailyLimit}×</p>
+            <p className="font-bold text-sm">
+              {game.dailyLimit}
+              <span className="text-muted-foreground font-normal text-xs"> plays</span>
+            </p>
           </div>
+        </div>
+
+        {/* Members get more banner */}
+        <div
+          onClick={() => setBlockReason("daily_limit")}
+          className="bg-gradient-to-r from-amber-500/10 to-purple-500/10 border border-amber-500/20 rounded-2xl px-4 py-2.5 flex items-center gap-2 cursor-pointer hover:border-amber-500/40 transition-colors"
+        >
+          <span className="text-lg">👑</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-bold text-amber-400">Members play more & earn more!</p>
+            <p className="text-xs text-muted-foreground">1.5× bonus multiplier · More daily plays</p>
+          </div>
+          <span className="text-xs font-bold text-amber-400 shrink-0">See benefits →</span>
         </div>
 
         {/* Bet selector */}
@@ -151,7 +209,7 @@ export default function GamePage() {
             {BET_OPTIONS.map(opt => (
               <button
                 key={opt}
-                onClick={() => setBetAmount(opt)}
+                onClick={() => { setBetAmount(opt); sounds.playClick(); }}
                 className={`py-2 rounded-xl text-sm font-bold border-2 transition-all ${
                   betAmount === opt
                     ? "bg-primary text-primary-foreground border-primary shadow-md scale-105"
@@ -170,61 +228,25 @@ export default function GamePage() {
         {/* Game component */}
         <div className="bg-gradient-to-b from-gray-950/80 to-black/60 rounded-3xl border border-border p-5">
           {gameType === "wheel" && (
-            <SpinWheelGame
-              gameId={gameId}
-              betAmount={betAmount}
-              onPlay={handlePlay}
-              isPlaying={playMutation.isPending}
-              balance={walletBalance}
-            />
+            <SpinWheelGame gameId={gameId} betAmount={betAmount} onPlay={handlePlay} isPlaying={playMutation.isPending} balance={walletBalance} sounds={sounds} />
           )}
           {gameType === "slots" && (
-            <SlotsGame
-              betAmount={betAmount}
-              onPlay={handlePlay}
-              isPlaying={playMutation.isPending}
-              balance={walletBalance}
-            />
+            <SlotsGame betAmount={betAmount} onPlay={handlePlay} isPlaying={playMutation.isPending} balance={walletBalance} sounds={sounds} />
           )}
           {gameType === "dice" && (
-            <DiceGame
-              betAmount={betAmount}
-              onPlay={handlePlay}
-              isPlaying={playMutation.isPending}
-              balance={walletBalance}
-            />
+            <DiceGame betAmount={betAmount} onPlay={handlePlay} isPlaying={playMutation.isPending} balance={walletBalance} sounds={sounds} />
           )}
           {gameType === "card" && (
-            <CardGame
-              betAmount={betAmount}
-              onPlay={handlePlay}
-              isPlaying={playMutation.isPending}
-              balance={walletBalance}
-            />
+            <CardGame betAmount={betAmount} onPlay={handlePlay} isPlaying={playMutation.isPending} balance={walletBalance} sounds={sounds} />
           )}
           {gameType === "number" && (
-            <NumberGame
-              betAmount={betAmount}
-              onPlay={handlePlay}
-              balance={walletBalance}
-            />
+            <NumberGame betAmount={betAmount} onPlay={handlePlay} balance={walletBalance} sounds={sounds} />
           )}
           {gameType === "crash" && (
-            <CrashGame
-              betAmount={betAmount}
-              onPlay={handlePlay}
-              balance={walletBalance}
-            />
+            <CrashGame betAmount={betAmount} onPlay={handlePlay} balance={walletBalance} sounds={sounds} />
           )}
           {gameType === "generic" && (
-            <GenericGame
-              category={game.category ?? "default"}
-              gameName={game.name ?? ""}
-              emoji={game.emoji ?? "⭐"}
-              betAmount={betAmount}
-              onPlay={handlePlay}
-              balance={walletBalance}
-            />
+            <GenericGame category={game.category ?? "default"} gameName={game.name ?? ""} emoji={game.emoji ?? "⭐"} betAmount={betAmount} onPlay={handlePlay} balance={walletBalance} sounds={sounds} />
           )}
         </div>
 
