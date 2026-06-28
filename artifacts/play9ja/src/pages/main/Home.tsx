@@ -4,8 +4,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
-import { Wallet, Star, Gift, Gamepad2, ArrowRight, Users, ArrowDownToLine, Trophy, Zap } from "lucide-react";
-import { useState, useEffect } from "react";
+import { Wallet, Star, Gift, Gamepad2, ArrowRight, Users, ArrowDownToLine, Trophy, Zap, Crown } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import LiveActivityTicker from "@/components/LiveActivityTicker";
 
 function GreetingTime(username: string) {
   const hour = new Date().getHours();
@@ -13,12 +14,33 @@ function GreetingTime(username: string) {
   return `${greet}, ${username}! 👋`;
 }
 
+const TOP_WITHDRAWERS = [
+  { name: "Elizabeth O.", amount: 850000, premium: true },
+  { name: "Chidi S.", amount: 720000, premium: true },
+  { name: "Yetunde S.", amount: 640000, premium: true },
+  { name: "Peter A.", amount: 510000, premium: false },
+  { name: "Amara O.", amount: 480000, premium: true },
+];
+
+function seededRand(seed: number, min: number, max: number) {
+  seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+  return min + (seed % (max - min + 1));
+}
+
 export default function Home() {
   const { user } = useAuth();
   const { data: dashboard, isLoading } = useGetDashboard(undefined, { query: { enabled: !!user } } as any);
   const [animBalance, setAnimBalance] = useState(0);
 
-  // Animate balance counter on load
+  const seed = useMemo(() => Math.floor(Date.now() / (30 * 60 * 1000)), []);
+  const miniLeaders = useMemo(() =>
+    TOP_WITHDRAWERS.map((u, i) => ({
+      ...u,
+      amount: u.amount + seededRand(seed + i * 13, -30000, 80000),
+    })).sort((a, b) => b.amount - a.amount),
+    [seed]
+  );
+
   useEffect(() => {
     if (!dashboard) return;
     const target = dashboard.wallet.total;
@@ -37,6 +59,7 @@ export default function Home() {
     return (
       <div className="p-4 md:p-8 space-y-6 animate-in fade-in">
         <Skeleton className="h-8 w-48 mb-6" />
+        <Skeleton className="h-10 w-full rounded-2xl" />
         <Skeleton className="h-44 w-full rounded-3xl" />
         <div className="grid grid-cols-2 gap-4">
           <Skeleton className="h-24 rounded-2xl" />
@@ -67,6 +90,9 @@ export default function Home() {
           </div>
         </Link>
       </div>
+
+      {/* Live Activity Ticker */}
+      <LiveActivityTicker />
 
       {/* Low balance alert */}
       {showTopUpBanner && (
@@ -171,10 +197,10 @@ export default function Home() {
         <h2 className="text-lg font-display font-bold mb-3">Quick Actions</h2>
         <div className="grid grid-cols-4 gap-2 md:gap-4">
           {[
-            { href: "/games", icon: Gamepad2, label: "Play", color: "bg-blue-500/10 text-blue-500", gradient: false },
-            { href: "/wallet", icon: ArrowDownToLine, label: "Deposit", color: "bg-green-500/10 text-green-500", gradient: false },
-            { href: "/referral", icon: Users, label: "Refer", color: "bg-purple-500/10 text-purple-500", gradient: false },
-            { href: "/leaderboard", icon: Trophy, label: "Ranks", color: "bg-amber-500/10 text-amber-500", gradient: false },
+            { href: "/games", icon: Gamepad2, label: "Play", color: "bg-blue-500/10 text-blue-500" },
+            { href: "/wallet", icon: ArrowDownToLine, label: "Deposit", color: "bg-green-500/10 text-green-500" },
+            { href: "/referral", icon: Users, label: "Refer", color: "bg-purple-500/10 text-purple-500" },
+            { href: "/leaderboard", icon: Trophy, label: "Ranks", color: "bg-amber-500/10 text-amber-500" },
           ].map((action, i) => (
             <Link key={i} href={action.href} className="flex flex-col items-center gap-2">
               <div className={`w-14 h-14 md:w-16 md:h-16 rounded-2xl flex items-center justify-center ${action.color} hover:scale-110 transition-transform shadow-sm`}>
@@ -184,6 +210,44 @@ export default function Home() {
             </Link>
           ))}
         </div>
+      </div>
+
+      {/* Mini Leaderboard — Top Withdrawers */}
+      <div>
+        <div className="flex justify-between items-center mb-3">
+          <h2 className="text-lg font-display font-bold flex items-center gap-2">
+            <Trophy className="w-5 h-5 text-amber-500" /> Top Withdrawers
+          </h2>
+          <Link href="/leaderboard" className="text-sm font-medium text-primary flex items-center gap-1 hover:underline">
+            Full Board <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
+        </div>
+        <Card className="rounded-2xl border border-border shadow-sm overflow-hidden">
+          <div className="divide-y divide-border">
+            {miniLeaders.map((entry, i) => (
+              <div key={entry.name} className="flex items-center gap-3 px-4 py-3 hover:bg-muted/40 transition-colors">
+                <div className={`w-7 text-center font-display font-bold text-sm shrink-0 ${i === 0 ? "text-yellow-400" : i === 1 ? "text-slate-400" : i === 2 ? "text-amber-600" : "text-muted-foreground"}`}>
+                  {i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `#${i + 1}`}
+                </div>
+                <div className="relative shrink-0">
+                  <div className="w-9 h-9 rounded-full bg-primary/15 flex items-center justify-center font-bold text-sm text-primary">
+                    {entry.name.charAt(0)}
+                  </div>
+                  {entry.premium && <Crown className="w-3 h-3 text-yellow-400 fill-yellow-400 absolute -top-0.5 -right-0.5" />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-semibold text-sm truncate">{entry.name}</span>
+                    {entry.premium && <span className="text-[10px] font-bold bg-yellow-500/15 text-yellow-500 px-1.5 py-0.5 rounded-full shrink-0">PRO</span>}
+                  </div>
+                </div>
+                <div className="font-bold text-sm text-primary shrink-0">
+                  ₦{entry.amount.toLocaleString()}
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
       </div>
 
       {/* Daily Missions */}

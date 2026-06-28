@@ -2,8 +2,8 @@ import { db, platformSettingsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
 const DEFAULTS: Record<string, string> = {
-  welcomeBonus: "8500",
-  referralReward: "7500",
+  welcomeBonus: "15000",
+  referralReward: "8500",
   telegramUrl: "https://t.me/orrbitx",
   supportEmail: "support@play9ja.com",
   liveChatUrl: "",
