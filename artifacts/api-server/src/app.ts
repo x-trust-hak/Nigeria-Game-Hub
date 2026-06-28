@@ -37,7 +37,7 @@ app.use("/api", router);
 
 // Serve Vite-built frontend in production (for Render single-service deploy)
 if (process.env["NODE_ENV"] === "production") {
-  const staticDir = path.resolve(__dirname, "../../play9ja/dist");
+  const staticDir = path.resolve(__dirname, "../../play9ja/dist/public");
   app.use(express.static(staticDir));
   app.get("/{*path}", (_req, res) => {
     res.sendFile(path.join(staticDir, "index.html"));
